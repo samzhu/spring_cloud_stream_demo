@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Game center</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css"
+          integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"
+            integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49"
+            crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"
+            integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.17/vue.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.18.0/axios.min.js"></script>
+</head>
+<body>
+<div class="container-fluid" id="app">
+    <h1>Welcome to Game center</h1>
+    <nav class="nav nav-pills nav-fill">
+        <a class="nav-item nav-link" href="/gameWebsocket">Websocket</a>
+        <a class="nav-item nav-link active" href="#">Polling</a>
+        <a class="nav-item nav-link" href="/chat">Chat</a>
+    </nav>
+    <div class="form-group">
+        <label for="exampleFormControlSelect1">請選擇要開通的遊戲</label>
+        <select class="form-control" id="exampleFormControlSelect1" v-model="gameCreateEvent.gameId">
+            <option value=""></option>
+            <option value="001">人中之龍 Online</option>
+            <option value="002">魔法禁書目錄 Ⅲ（とある魔術の禁書目録Ⅲ）</option>
+            <option value="003">復活邪神 Re ; universe（ロマンシング サガ リ・ユニバース）</option>
+            <option value="004">迷霧機甲（ミストギア）</option>
+            <option value="005">Dragalia Lost ～失落的龍絆～（ドラガリアロスト）</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <button type="button" v-on:click="sendCreate" class="btn btn-primary">開通</button>
+    </div>
+    <div class="form-group">
+        <li v-for="item in output">
+            {{ item.dateTime }} - {{ item.message }}
+        </li>
+    </div>
+</div>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+
+
+    Vue.config.devtools = true;
+    Vue.config.debug = true;
+
+    var app = new Vue({
+        el: '#app',
+        data: {
+            gameCreateEvent: {
+                gameId: ''
+            },
+            output: [],
+            eventIdPool: []
+        },
+        methods: {
+            sendCreate: function (event) {
+                var vuedata = this;
+                axios.create().post('/api/game', vuedata.gameCreateEvent)
+                    .then(function (response) {
+                        if (response.status == 202) {
+                            vuedata.output.push({dateTime: response.data.dateTime, message: response.data.message});
+                            vuedata.eventIdPool.push({eventId: response.data.eventId});
+                        } else {
+                            console.log(response);
+                        }
+                    }).catch(function (error) {
+                    console.log(error);
+                });
+            },
+            queryEvent: function () {
+                var vuedata = this;
+                vuedata.eventIdPool.forEach(function (item, index) {
+                    axios.create().get('/api/gameEvent/' + item.eventId)
+                        .then(function (response) {
+                            if (response.status == 200) {
+                                vuedata.eventIdPool.splice(index, 1);
+                                vuedata.output.push({dateTime: response.data.dateTime, message: response.data.message});
+                            } else {
+                                console.log(response);
+                            }
+                        }).catch(function (error) {
+                        console.log(error);
+                    });
+                });
+            }
+        }
+    })
+
+    var query = self.setInterval("app.queryEvent()", 5000);
+    /*]]>*/
+</script>
+
+</body>
+</html>

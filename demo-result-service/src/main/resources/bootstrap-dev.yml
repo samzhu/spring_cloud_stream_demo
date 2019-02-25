@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: resultservice-v1
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:test;MODE=MySQL;DB_CLOSE_DELAY=-1
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  rabbitmq:
+    host: 192.168.56.101
+    port: 5672
+    username: user
+    password: 'password'
+  cloud:
+    stream:
+      bindings:
+        input:
+          destination: result.message
+          content-type: application/json
+          group: resultGroup
+          binder: eventMq
+        output:
+          destination: notify.message
+          content-type: application/json
+          binder: eventMq
+      binders:
+        eventMq:
+          type: rabbit                          # rabbit or kafka
+          environment:
+            spring:
+              rabbitmq:
+                host: 127.0.0.1
+                port: 5672
+                username: user
+                password: 'password'
+server:
+  port: ${port:0}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+    enabled: true
+  instance:
+    prefer-ip-address: true
+
+management:
+  health:
+    binders:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: 'channels,bindings,bindings-name'
+
+logging:
+  file: /logs/result.log
+  level:
+    org.springframework: info
+    com.example.demo: debug

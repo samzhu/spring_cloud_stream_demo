@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>聊天室</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css"
+          integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"
+            integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49"
+            crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"
+            integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.17/vue.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.18.0/axios.min.js"></script>
+</head>
+<body>
+
+<div class="container-fluid" id="app">
+    <h1>Welcome to chat room</h1>
+    <nav class="nav nav-pills nav-fill">
+        <a class="nav-item nav-link" href="/gameWebsocket">Websocket</a>
+        <a class="nav-item nav-link" href="/gamePolling">Polling</a>
+        <a class="nav-item nav-link active" href="#">Chat</a>
+    </nav>
+    <div class="form-group">
+        <button type="button" v-on:click="connect" class="btn btn-success">連接</button>
+        <button type="button" v-on:click="quit" class="btn btn-danger">離開</button>
+    </div>
+    <div class="form-group">
+        <li v-for="item in output">
+            {{ item.dateTime }} {{item.fromUserName}} 說: {{ item.message }}
+        </li>
+    </div>
+    <div class="form-row align-items-center">
+        <div class="col-auto my-1">
+            <select class="custom-select mr-sm-2" v-model="chatSendContent.chatTo">
+                <option selected>Choose...</option>
+                <option value="111">111</option>
+                <option value="222">222</option>
+                <option value="333">333</option>
+                <option value="444">444</option>
+            </select>
+        </div>
+        <div class="col-auto">
+            <input type="text" v-model="chatSendContent.message" class="form-control mb-2" placeholder="說些什麼">
+        </div>
+        <div class="col-auto">
+            <button type="button" v-on:click="sendChat" class="btn btn-primary mb-2">送出</button>
+        </div>
+    </div>
+</div>
+
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    function handleNotification(response) {
+        var responseData = JSON.parse(response.body);
+        app.output.push({
+            dateTime: responseData.dateTime,
+            fromUserName: responseData.fromUserName,
+            message: responseData.message
+        });
+    }
+
+    Vue.config.devtools = true;
+    Vue.config.debug = true;
+    var sock = null;
+    var stomp = null;
+    var subscription = null;
+    var app = new Vue({
+        el: '#app',
+        data: {
+            sock: null,
+            stomp: null,
+            chatSendContent: {
+                chatTo: '',
+                message: ''
+            },
+            output: []
+        },
+        created: function () {
+            this.connect();
+        },
+        methods: {
+            sendChat: function (event) {
+                var vuedata = this;
+                // 消息轉發，對應相關controller中的MessageMapping("/chat1") 增加的“/app”源於WebSocketConfig中配置的結果
+                stomp.send("/app/chat", {}, JSON.stringify(vuedata.chatSendContent));
+            },
+            connect: function () {
+                var vuedata = this;
+                if(subscription == null){
+                    sock = new SockJS("/ws");
+                    stomp = Stomp.over(sock);
+                    /**
+                     * 連接服務端，成功後註冊監聽，註冊地址為/user/queue/notifications
+                     * 監聽地址比WebSocket配置文件中的多了一個/user，這個/user是必不可少的，使用了它消息才會點對點傳送。
+                     */
+                    stomp.connect('guest', 'guest', function (frame) {
+                        subscription = stomp.subscribe("/user/queue/notifications", handleNotification);
+                    });
+                }
+            },
+            quit: function () {
+                sock.close();
+                subscription.unsubscribe();
+                subscription = null;
+            }
+        }
+    })
+    /*]]>*/
+</script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Game center</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css"
+          integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"
+            integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49"
+            crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"
+            integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.17/vue.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.18.0/axios.min.js"></script>
+</head>
+<body>
+<div class="container-fluid" id="app">
+    <h1>Welcome to Game center</h1>
+    <nav class="nav nav-pills nav-fill">
+        <a class="nav-item nav-link active" href="#">Websocket</a>
+        <a class="nav-item nav-link" href="/gamePolling">Polling</a>
+        <a class="nav-item nav-link" href="/chat">Chat</a>
+    </nav>
+    <div class="form-group">
+        <label for="exampleFormControlSelect1">請選擇要開通的遊戲</label>
+        <select class="form-control" id="exampleFormControlSelect1" v-model="gameCreateEvent.gameId">
+            <option value=""></option>
+            <option value="001">人中之龍 Online</option>
+            <option value="002">魔法禁書目錄 Ⅲ（とある魔術の禁書目録Ⅲ）</option>
+            <option value="003">復活邪神 Re ; universe（ロマンシング サガ リ・ユニバース）</option>
+            <option value="004">迷霧機甲（ミストギア）</option>
+            <option value="005">Dragalia Lost ～失落的龍絆～（ドラガリアロスト）</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <button type="button" v-on:click="sendCreate" class="btn btn-primary">開通</button>
+    </div>
+    <div class="form-group">
+        <li v-for="item in output">
+            {{ item.dateTime }} - {{ item.message }}
+        </li>
+    </div>
+</div>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    $("#sangForm").submit(function (e) {
+        e.preventDefault();
+        var textArea = $("#sangForm").find('textarea[name="text"]');
+        var text = textArea.val();
+        sendSpittle(text);
+        textArea.val('');
+    });
+    var sock = new SockJS("/ws");
+    var stomp = Stomp.over(sock);
+    /**
+     * 連接服務端，成功後註冊監聽，註冊地址為/user/queue/notifications
+     * 監聽地址比WebSocket配置文件中的多了一個/user，這個/user是必不可少的，使用了它消息才會點對點傳送。
+     */
+    stomp.connect('guest', 'guest', function (frame) {
+        stomp.subscribe("/user/queue/notifications", handleNotification);
+    });
+
+    function handleNotification(response) {
+        var responseData = JSON.parse(response.body);
+        app.output.push({dateTime: responseData.dateTime, message: responseData.message});
+    }
+
+    /**
+     * 消息轉發，對應相關controller中的MessageMapping("/chat1")
+     * 增加的“/app”源於WebSocketConfig中配置的結果
+     * @param text
+     */
+    function sendSpittle(text) {
+        stomp.send("/app/chat1", {}, text);
+    }
+
+    //  關閉連接
+    $("#stop").click(function () {
+        sock.close();
+    });
+
+    Vue.config.devtools = true;
+    Vue.config.debug = true;
+
+    var app = new Vue({
+        el: '#app',
+        data: {
+            gameCreateEvent: {
+                gameId: ''
+            },
+            output: []
+        },
+        methods: {
+            sendCreate: function (event) {
+                var vuedata = this;
+                axios.create().post('/api/game', vuedata.gameCreateEvent)
+                    .then(function (response) {
+                        if (response.status == 202) {
+                            vuedata.output.push({dateTime: response.data.dateTime, message: response.data.message});
+                        } else {
+                            console.log(response);
+                        }
+                    }).catch(function (error) {
+                    console.log(error);
+                });
+            }
+        }
+    })
+    /*]]>*/
+</script>
+
+</body>
+</html>

@@ -1,0 +1,71 @@
+spring:
+  application:
+    name: web
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+  cloud:
+    stream:
+      bindings:
+        gameChannel:                            # channelName
+          destination: game.create.message.v1   # destination，或者可以認為是發布－訂閱模型裏面的topic
+          content-type: application/json
+          producer:
+            required-groups: gameGroup          # 生產者必須確保消息傳遞的組群列表（逗號分隔），即使它們是在創建之後啟動的（例如，通過在RabbitMQ中預先創建持久隊列）。
+          binder: eventMq                       # 綁定使用的binder
+        resultChannel:
+          destination: result.message
+          content-type: application/json
+          group: webGroup                      # 綁定消費組
+          binder: eventMq
+        userNotifyChannel:
+          destination: notify.message
+          content-type: application/json
+          binder: eventMq
+      binders:
+        eventMq:
+          type: rabbit                          # rabbit or kafka
+          environment:
+            spring:
+              rabbitmq:
+                host: 127.0.0.1
+                port: 5672
+                username: user
+                password: 'password'
+      rabbit:
+        bindings:
+          gameChannel:
+            producer:
+              auto-bind-dlq: true
+#              dead-letter-exchange: sam.test
+            consumer:
+              auto-bind-dlq: true                             # 建立 Exchange: DLX
+#              dead-letter-exchange: sam.test                  # 死信指定的 Exchange Name
+              republish-to-dlq: true                          # 該值為false如果設置了死信隊列，消息對原封不動的發送到死信隊列，如果為true，則消息對帶上錯誤信息發送至死信隊列
+#              dlq-ttl: 10000
+
+server:
+  port: ${port:8080}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+    enabled: true
+  instance:
+    prefer-ip-address: true
+
+management:
+  health:
+    binders:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: 'channels,bindings,bindings-name'
+
+logging:
+  file: /logs/webSocket.log
+  level:
+    org.springframework: info
+    com.example.demo: debug
